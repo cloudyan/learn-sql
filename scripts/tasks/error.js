@@ -149,13 +149,12 @@ environment: prod |
 select
   '${appName}' app_name,
   t1.t_pv,
-  t1.t_error,
+  if(t2.t_error is null, 0, t2.t_error) t_error,
   if(t2.err_pv is null, 0, t2.err_pv) err_pv,
   t1.dt
 FROM
   (select
       sum(if(t = 'pv', times, 0)) t_pv,
-      sum(if(t = 'error', times, 0)) t_error,
       date_trunc('day', __time__) as dt
     FROM log
     where(t = 'pv')
@@ -164,6 +163,7 @@ FROM
   ) t1
   left join
   (select
+      count(times) t_error,
       count(DISTINCT pv_id) as err_pv,
       date_trunc('day', __time__) as dt
     FROM log
@@ -249,46 +249,61 @@ Promise.all(
   const result = res.map(item => item.body)
   // console.log(result)
 
-  const temp = result.reduce((arr, proj) => {
+  // 第一层为 store 即应用，第二层为日期
+  const temp = result.reduce((obj, proj) => {
     let index = 0;
     for (let key in proj) {
       const cur = proj[key]
-      // console.log('cur', cur.app_name, cur.dt.substr(0, 10), Number(cur.err_pv))
-      const arrItem = arr[index]
-      if (!arrItem) {
-        arr[index] = {
+      // console.log('cur', cur.app_name, cur.dt.substr(0, 10), Number(cur.t_pv), Number(cur.err_pv))
+
+      // ByAppByDay 汇总，输出结果为每应用每天的结果
+      // [app_name, x1, x2, x3, xx]
+      const appItem = obj.app[cur.app_name];
+      const appErrRate = (Math.round(cur.err_pv/cur.t_pv*10000*100)/100).toFixed(1);
+      if (!appItem) {
+        obj.app[cur.app_name] = [appErrRate];
+      } else {
+        obj.app[cur.app_name].push(appErrRate);
+      }
+
+      // ByDay 汇总，输出结果为每天所有应用的汇总
+      // [x1, x2, x3]
+      const dtItem = obj.dt[index] // dt 日期
+      if (!dtItem) {
+        obj.dt[index] = {
           dt: cur.dt,
           t_pv: Number(cur.t_pv),
           t_error: Number(cur.t_error),
           err_pv: Number(cur.err_pv),
         };
       } else {
-        arr[index] = {
+        obj.dt[index] = {
           dt: cur.dt,
-          t_pv: Number(arrItem.t_pv) + Number(cur.t_pv),
-          t_error: Number(arrItem.t_error) + Number(cur.t_error),
-          err_pv: Number(arrItem.err_pv) + Number(cur.err_pv),
+          t_pv: Number(dtItem.t_pv) + Number(cur.t_pv),
+          t_error: Number(dtItem.t_error) + Number(cur.t_error),
+          err_pv: Number(dtItem.err_pv) + Number(cur.err_pv),
         };
       }
       index++;
     }
-    return arr;
-  }, [])
+    return obj;
+  }, {dt: [], app: {}})
 
+  console.log('err_rate_byApp', temp.app);
 
-  const doneResult = temp.map(item => {
+  const totalResult = temp.dt.map(item => {
     const error_cnt_rate = item.t_error/item.t_pv*10000
     const error_pv_rate = item.err_pv/item.t_pv*10000
-    const temp = {
+    const temp2 = {
       ...item,
       dt: item.dt,
       error_cnt_rate: (Math.round(error_cnt_rate*100)/100).toFixed(1),
       error_pv_rate: (Math.round(error_pv_rate*100)/100).toFixed(1),
     };
-    return Number(temp.error_pv_rate);
+    return Number(temp2.error_pv_rate);
   })
 
-  console.log('result', doneResult);
+  console.log('err_rate_total', totalResult);
 
 }).catch(err => {
   console.log('err:', err);
