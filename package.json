@@ -1,0 +1,33 @@
+{
+  "name": "learn-sql",
+  "version": "1.0.0",
+  "description": "## SQL",
+  "main": "index.js",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "old:error": "node ./scripts/tasks/old-error",
+    "old:fpt": "node ./scripts/tasks/old-fpt",
+    "percent": "node ./scripts/tasks/percentile_approx",
+    "fmp": "node ./scripts/tasks/fmp",
+    "fpt": "node ./scripts/tasks/fpt",
+    "error": "node ./scripts/tasks/error",
+    "error:msg": "node ./scripts/tasks/error_msg",
+    "api": "node ./scripts/tasks/api",
+    "list": "node ./scripts/tasks/list-stores",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudyan/learn-sql.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cloudyan/learn-sql/issues"
+  },
+  "homepage": "https://github.com/cloudyan/learn-sql#readme",
+  "devDependencies": {
+    "aliyun-sdk": "^1.12.5"
+  }
+}
