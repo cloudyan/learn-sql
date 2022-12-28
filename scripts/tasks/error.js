@@ -3,8 +3,12 @@ const config = require('../config.private');
 const { getLogsPromise } = require('../sls');
 
 const today = new Date().toJSON().substr(0,10).replace('-', '/');
-const to = Math.floor(new Date(`${today} 00:00:00`).getTime() / 1000)
-const from = to - 86400*7;
+const todayZero = Math.floor(new Date(`${today} 00:00:00`).getTime() / 1000);
+const to = Math.floor(new Date()/1000)
+const from = todayZero - 86400*7;
+
+// to 取现在
+// from 取过去的 N 天数
 
 // 制作整体图表或错误率，推荐使用原始库(因加工 err_pv，可临时使用 arms 汇总库）
 // 其他情况，可以直接使用原始库
@@ -138,6 +142,8 @@ group by dt
 order by dt
 `
 
+// 按自然日划分天数
+// https://help.aliyun.com/document_detail/63451.html
 const query2 = appName => `
 environment: prod |
 select
