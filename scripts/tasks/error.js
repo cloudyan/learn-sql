@@ -142,8 +142,9 @@ group by dt
 order by dt
 `
 
-// 按自然日划分天数
+// 按自然日划分天数, byDay 输出 ByApp 及汇总的指标
 // https://help.aliyun.com/document_detail/63451.html
+// 计算思路：按天分组查询错误 pv 和总 pv，按天左连接汇总
 const query2 = appName => `
 environment: prod |
 select
@@ -256,17 +257,20 @@ Promise.all(
       const cur = proj[key]
       // console.log('cur', cur.app_name, cur.dt.substr(0, 10), Number(cur.t_pv), Number(cur.err_pv))
 
-      // ByAppByDay 汇总，输出结果为每应用每天的结果
+      // ByAppByDay 输出结果
       // [app_name, x1, x2, x3, xx]
       const appItem = obj.app[cur.app_name];
-      const appErrRate = (Math.round(cur.err_pv/cur.t_pv*10000*100)/100).toFixed(1);
+      const appErrPvRate = (Math.round(cur.err_pv/cur.t_pv*10000*100)/100).toFixed(1);
+      // const appErrCntRate = (Math.round(cur.t_error/cur.t_pv*10000*100)/100).toFixed(1);
       if (!appItem) {
-        obj.app[cur.app_name] = [appErrRate];
+        obj.app[cur.app_name] = [appErrPvRate];
+        // obj.app[cur.app_name] = [appErrCntRate];
       } else {
-        obj.app[cur.app_name].push(appErrRate);
+        obj.app[cur.app_name].push(appErrPvRate);
+        // obj.app[cur.app_name].push(appErrCntRate);
       }
 
-      // ByDay 汇总，输出结果为每天所有应用的汇总
+      // TotalByDay 汇总，输出结果为每天所有应用的汇总
       // [x1, x2, x3]
       const dtItem = obj.dt[index] // dt 日期
       if (!dtItem) {
@@ -300,6 +304,7 @@ Promise.all(
       error_cnt_rate: (Math.round(error_cnt_rate*100)/100).toFixed(1),
       error_pv_rate: (Math.round(error_pv_rate*100)/100).toFixed(1),
     };
+    // return Number(temp2.error_cnt_rate); // 老指标
     return Number(temp2.error_pv_rate);
   })
 

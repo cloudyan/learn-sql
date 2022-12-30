@@ -22,14 +22,14 @@ and environment: prod
 and fmp >= 0 |
 select
   '${appName}' app_name,
-  round((0.0 + t1.cnt1) * 100 / t1.total, 2) s1_rate,
-  round((0.0 + t1.cnt2) * 100 / t1.total, 2) s2_rate,
-  round((0.0 + t1.cnt1 + (t1.cnt4 - t1.cnt1) / 2) * 100 / t1.total, 2) fmp_apdex,
+  round((0.0 + t1.cnt1) * 100 / t1.total_cnt, 2) s1_rate,
+  round((0.0 + t1.cnt2) * 100 / t1.total_cnt, 2) s2_rate,
+  round((0.0 + t1.cnt1 + (t1.cnt4 - t1.cnt1) / 2) * 100 / t1.total_cnt, 2) fmp_apdex,
   t1.cnt1 s1_cnt,
   t1.cnt2 s2_cnt,
   t1.cnt3 s3_cnt,
   t1.cnt4 s4_cnt,
-  t1.total,
+  t1.total_cnt,
   t1.dt
 FROM  (
     select
@@ -37,7 +37,7 @@ FROM  (
       count_if(fmp <=  2000) cnt2,
       count_if(fmp <=  3000) cnt3,
       count_if(fmp <=  4000) cnt4,
-      count(1) total,
+      count(1) total_cnt,
       date_format(date / 1000, '%Y-%m-%d') as dt
     FROM      log
     group by dt
@@ -60,21 +60,21 @@ and fmp >= 0
 and environment: prod |
 select
   '${appName}' app_name,
-  round((0.0 + t1.cnt1) * 100 / t1.total, 2) s1_rate,
-  round((0.0 + t1.cnt2) * 100 / t1.total, 2) s2_rate,
-  round((0.0 + t1.cnt1 + (t1.cnt4 - t1.cnt1) / 2) * 100 / t1.total, 2) fmp_apdex,
+  round((0.0 + t1.cnt1) * 100 / t1.total_cnt, 2) s1_rate,
+  round((0.0 + t1.cnt2) * 100 / t1.total_cnt, 2) s2_rate,
+  round((0.0 + t1.cnt1 + (t1.cnt4 - t1.cnt1) / 2) * 100 / t1.total_cnt, 2) fmp_apdex,
   t1.cnt1 s1_cnt,
   t1.cnt2 s2_cnt,
   t1.cnt3 s3_cnt,
   t1.cnt4 s4_cnt,
-  t1.total
+  t1.total_cnt,
 FROM  (
     select
       count_if(fmp <= 1000) cnt1,
       count_if(fmp <= 2000) cnt2,
       count_if(fmp <= 3000) cnt3,
       count_if(fmp <= 4000) cnt4,
-      count(1) total
+      count(1) total_cnt
     FROM      log
   ) t1
   `});
@@ -201,29 +201,38 @@ function fmpDataHandler(data) {
     s4_cnt: 0,
     total_cnt: 0,
   };
-  const temp = result.reduce((arr, proj) => {
+
+  const temp = result.reduce((obj, proj) => {
     let index = 0;
     for (let key in proj) {
       const cur = proj[key]
       // console.log('cur', cur)
-      const arrItem = arr[index]
-      if (!arrItem) {
-        arr[index] = {
+      const appItem = obj.app[cur.app_name];
+      if (!appItem) {
+        obj.app[cur.app_name] = [cur.fmp_apdex];
+      } else {
+        obj.app[cur.app_name].push(cur.fmp_apdex);
+      }
+
+      // TotalByDay 汇总指标
+      const dtItem = obj.dt[index]
+      if (!dtItem) {
+        obj.dt[index] = {
           dt: cur.dt,
           s1_cnt: Number(cur.s1_cnt),
           s2_cnt: Number(cur.s2_cnt),
           s3_cnt: Number(cur.s3_cnt),
           s4_cnt: Number(cur.s4_cnt),
-          total_cnt: Number(cur.total),
+          total_cnt: Number(cur.total_cnt),
         };
       } else {
-        arr[index] = {
+        obj.dt[index] = {
           dt: cur.dt,
-          s1_cnt: Number(arrItem.s1_cnt) + Number(cur.s1_cnt),
-          s2_cnt: Number(arrItem.s2_cnt) + Number(cur.s2_cnt),
-          s3_cnt: Number(arrItem.s3_cnt) + Number(cur.s3_cnt),
-          s4_cnt: Number(arrItem.s4_cnt) + Number(cur.s4_cnt),
-          total_cnt: Number(arrItem.total_cnt) + Number(cur.total),
+          s1_cnt: Number(dtItem.s1_cnt) + Number(cur.s1_cnt),
+          s2_cnt: Number(dtItem.s2_cnt) + Number(cur.s2_cnt),
+          s3_cnt: Number(dtItem.s3_cnt) + Number(cur.s3_cnt),
+          s4_cnt: Number(dtItem.s4_cnt) + Number(cur.s4_cnt),
+          total_cnt: Number(dtItem.total_cnt) + Number(cur.total_cnt),
         };
       }
       dataTotal = {
@@ -231,15 +240,16 @@ function fmpDataHandler(data) {
         s2_cnt: Number(dataTotal.s2_cnt) + Number(cur.s2_cnt),
         s3_cnt: Number(dataTotal.s3_cnt) + Number(cur.s3_cnt),
         s4_cnt: Number(dataTotal.s4_cnt) + Number(cur.s4_cnt),
-        total_cnt: Number(dataTotal.total_cnt) + Number(cur.total),
+        total_cnt: Number(dataTotal.total_cnt) + Number(cur.total_cnt),
       }
       index++;
     }
-    return arr;
-  }, [])
+    return obj;
+  }, {dt: [], app: {}})
 
+  console.log('fmp_apdex_byApp', temp.app);
 
-  const dataByDay = temp.map(item => {
+  const dataByDay = temp.dt.map(item => {
     const fmp_apdex = (item.s1_cnt + (item.s4_cnt - item.s1_cnt)/2)/item.total_cnt*100
     return {
       dt: item.dt,
@@ -252,24 +262,18 @@ function fmpDataHandler(data) {
   return {dataTotal, dataByDay}
 }
 
-Promise.all(
-  // config.fmp_projects.map(getFmpApdex),
-  config.fmp_projects.map(getFmpApdexByDay),
-).then(fmpDataHandler)
-.then(({dataByDay, dataTotal}) => {
-  console.log('fmpApdexByDay:', dataByDay);
-  console.log('fmpApdexAll:', dataTotal.fmp_apdex);
-}).catch(err => {
-  console.log('err:', err);
-});
 
+// apdex 的总指标对优化没什么用处
+// 需要关注每个应用自己的数据对比，ByAppByDay 输出，才能用于项目性能优化
+// 后续需要结合 api 响应时间考虑
 Promise.all(
   // config.fmp_projects.map(getFmpApdex),
   config.fmp_projects.map(getFmpApdexByDay),
 ).then(fmpDataHandler)
-.then(({dataByDay, dataTotal}) => {
-  console.log('fmpApdexByDay:', dataByDay);
+.then((total) => {
+  const {dataByDay, dataTotal} = total;
   console.log('fmpApdexAll:', dataTotal.fmp_apdex);
+  console.log('fmpApdexByDay:', dataByDay);
 }).catch(err => {
   console.log('err:', err);
 });
